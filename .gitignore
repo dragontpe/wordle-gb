@@ -1,0 +1,19 @@
+# Build output
+build/
+
+# Generated sources — `make` rebuilds these from tools/ and audio/
+res/
+
+# Emulator save files
+*.sav
+*.ram
+*.srm
+
+# uge2source is a 950KB x86_64 binary from the hUGETracker release.
+# It is only needed to regenerate res/song.c; see audio/README.md.
+vendor/huge/uge2source
+
+.DS_Store
+dist/
+__pycache__/
+*.pyc
