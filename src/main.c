@@ -370,8 +370,7 @@ static void title_draw(void) {
     }
 
     render_text_centered(15, "SELECT: HOW TO PLAY", PAL_TEXT);
-    render_text_centered(16, "@2026", PAL_TEXT);
-    render_text_centered(17, "WITHOUT BANNERS", PAL_TEXT);
+    render_credit(4, 17);
 }
 
 static void title_screen(void) {

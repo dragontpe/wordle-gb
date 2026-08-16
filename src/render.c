@@ -81,6 +81,15 @@ void render_game_palettes(void) {
     set_bkg_palette(PAL_ABSENT, 1, pal_absent);
 }
 
+// The pre-baked mini-font copyright strip, one row, text palette.
+void render_credit(uint8_t x, uint8_t y) {
+    uint8_t row[CREDIT_W];
+    for (uint8_t i = 0; i < CREDIT_W; i++)
+        row[i] = (uint8_t)(CREDIT_TILE_BASE + credit_map[i]);
+    set_bkg_tiles(x, y, CREDIT_W, 1, row);
+    render_set_attr(x, y, CREDIT_W, 1, PAL_TEXT);
+}
+
 void render_logo2(uint8_t x, uint8_t y) {
     for (uint8_t ty = 0; ty < LOGO2_H; ty++) {
         uint8_t row[LOGO2_W];
@@ -101,6 +110,7 @@ void render_init(void) {
     set_bkg_data(UTIL_TILE_BASE, UTIL_TILE_COUNT, util_tiles);
     set_bkg_data(LOGO_TILE_BASE, LOGO_TILE_COUNT, logo_tiles);
     set_bkg_data(LOGO2_TILE_BASE, LOGO2_TILE_COUNT, logo2_tiles);
+    set_bkg_data(CREDIT_TILE_BASE, CREDIT_TILE_COUNT, credit_tiles);
 
     set_bkg_palette(PAL_EMPTY,  1, pal_empty);
     set_bkg_palette(PAL_FILLED, 1, pal_filled);

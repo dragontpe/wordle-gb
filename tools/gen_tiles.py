@@ -292,6 +292,64 @@ def make_logo2():
     return tiles, tilemap, attr
 
 
+MINI = {
+    "0": ["###", "#.#", "#.#", "#.#", "###"],
+    "2": ["###", "..#", "###", "#..", "###"],
+    "6": ["###", "#..", "###", "#.#", "###"],
+    "A": [".#.", "#.#", "###", "#.#", "#.#"],
+    "B": ["##.", "#.#", "##.", "#.#", "##."],
+    "E": ["###", "#..", "##.", "#..", "###"],
+    "H": ["#.#", "#.#", "###", "#.#", "#.#"],
+    "I": ["###", ".#.", ".#.", ".#.", "###"],
+    "N": ["#.#", "###", "###", "#.#", "#.#"],
+    "O": ["###", "#.#", "#.#", "#.#", "###"],
+    "R": ["##.", "#.#", "##.", "#.#", "#.#"],
+    "S": [".##", "#..", ".#.", "..#", "##."],
+    "T": ["###", ".#.", ".#.", ".#.", ".#."],
+    "U": ["#.#", "#.#", "#.#", "#.#", "###"],
+    "W": ["#.#", "#.#", "#.#", "###", "#.#"],
+}
+
+# 5x5 copyright mark for the credit strip.
+MINI_C = [".###.", "#...#", "#.#.#", "#...#", ".###."]
+
+
+def make_credit():
+    """The copyright line baked as one pixel strip in a 3x5 mini font, so it
+    can sit a size below everything else on screen. Free-form pixels, not
+    per-character tiles: the (c) mark is 5px, letters 3px, then the strip is
+    sliced and deduped. Ink in value 2 to ride the text palette."""
+    text = "2026 WITHOUT BANNERS"
+    width = 5 + 2
+    for ch in text:
+        width += 2 if ch == " " else 4
+    tiles_w = (width + 7) // 8
+    c = blank(tiles_w * 8, 8, 0)
+    x = 0
+    for gy, row in enumerate(MINI_C):
+        for gx, px in enumerate(row):
+            if px == "#":
+                c[1 + gy][x + gx] = 2
+    x += 7
+    for ch in text:
+        if ch == " ":
+            x += 2
+            continue
+        for gy, row in enumerate(MINI[ch]):
+            for gx, px in enumerate(row):
+                if px == "#":
+                    c[1 + gy][x + gx] = 2
+        x += 4
+    tiles, tilemap, index = [], [], {}
+    for tx in range(tiles_w):
+        sub = tuple(tuple(c[y][tx * 8 + xx] for xx in range(8)) for y in range(8))
+        if sub not in index:
+            index[sub] = len(tiles)
+            tiles.append(encode_tile([list(r) for r in sub]))
+        tilemap.append(index[sub])
+    return tiles, tilemap
+
+
 def make_sparkle(kind):
     """Little dark decorations scattered on the sky, wordyl-style. Drawn in
     value 2, the ink slot of the text palette, so they need no palette of
@@ -324,12 +382,13 @@ def build_all():
     utils = [make_solid(), make_sparkle(0), make_sparkle(1), make_sparkle(2)]
     logo = make_logo()
     logo2, logo2_map, logo2_attr = make_logo2()
-    return cells, fonts, utils, logo, logo2, logo2_map, logo2_attr
+    credit, credit_map = make_credit()
+    return cells, fonts, utils, logo, logo2, logo2_map, logo2_attr, credit, credit_map
 
 
 def main():
     os.makedirs(RES, exist_ok=True)
-    cells, fonts, utils, logo, logo2, logo2_map, logo2_attr = build_all()
+    cells, fonts, utils, logo, logo2, logo2_map, logo2_attr, credit, credit_map = build_all()
 
     with open(os.path.join(RES, "tiles.c"), "w") as fh:
         fh.write('#include <gbdk/platform.h>\n#include <stdint.h>\n\n')
@@ -343,6 +402,10 @@ def main():
         fh.write("\n};\n\n")
         fh.write("const uint8_t logo2_attr[%d] = {\n    " % len(logo2_attr))
         fh.write(", ".join(str(v) for v in logo2_attr))
+        fh.write("\n};\n\n")
+        emit(fh, "credit_tiles", credit)
+        fh.write("const uint8_t credit_map[%d] = {\n    " % len(credit_map))
+        fh.write(", ".join(str(v) for v in credit_map))
         fh.write("\n};\n\n")
 
     with open(os.path.join(RES, "tiles.h"), "w") as fh:
@@ -360,6 +423,9 @@ def main():
         fh.write("#define LOGO2_TILE_COUNT %d\n" % len(logo2))
         fh.write("#define LOGO2_TILE_BASE %d\n" % (len(cells) + len(fonts) + len(utils) + len(logo)))
         fh.write("#define LOGO2_W 14\n#define LOGO2_H 4\n")
+        fh.write("#define CREDIT_TILE_COUNT %d\n" % len(credit))
+        fh.write("#define CREDIT_TILE_BASE %d\n" % (len(cells) + len(fonts) + len(utils) + len(logo) + len(logo2)))
+        fh.write("#define CREDIT_W %d\n" % len(credit_map))
         fh.write("#define TILE_SOLID (UTIL_TILE_BASE + 0)\n")
         fh.write("#define TILE_STAR (UTIL_TILE_BASE + 1)\n")
         fh.write("#define TILE_DOT (UTIL_TILE_BASE + 2)\n")
@@ -371,15 +437,18 @@ def main():
         fh.write("extern const uint8_t logo_tiles[];\n")
         fh.write("extern const uint8_t logo2_tiles[];\n")
         fh.write("extern const uint8_t logo2_map[];\n")
-        fh.write("extern const uint8_t logo2_attr[];\n\n")
+        fh.write("extern const uint8_t logo2_attr[];\n")
+        fh.write("extern const uint8_t credit_tiles[];\n")
+        fh.write("extern const uint8_t credit_map[];\n\n")
         fh.write("#endif\n")
 
-    total = len(cells) + len(fonts) + len(utils) + len(logo) + len(logo2)
+    total = len(cells) + len(fonts) + len(utils) + len(logo) + len(logo2) + len(credit)
     print("cell tiles : %d" % len(cells))
     print("font tiles : %d" % len(fonts))
     print("util tiles : %d" % len(utils))
     print("logo tiles : %d" % len(logo))
     print("logo2 tiles: %d" % len(logo2))
+    print("credit     : %d tiles, %d wide" % (len(credit), len(credit_map)))
     print("total      : %d / 256" % total)
     print("font order : %s" % "".join(FONT_ORDER))
 
