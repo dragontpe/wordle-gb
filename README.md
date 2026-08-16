@@ -3,11 +3,11 @@
 Wordle as a Game Boy Color ROM, built for the **Miyoo Mini Plus** but valid on
 any GBC emulator, flashcart, or real hardware.
 
-![Title, mid-game, solved, and statistics screens](docs/screens.png)
+![Title, how-to-play, mid-game, solved, and statistics screens](docs/screens.png)
 
-Six guesses, green for the right letter in the right place, yellow for the right
-letter in the wrong place. The full 12,972-word Wordle guess list is in the ROM,
-so a word is either real or it is not — no shortcuts.
+Six guesses, green for the right letter in the right place, orange for the
+right letter in the wrong place. The full 12,972-word Wordle guess list is in
+the ROM, so a word is either real or it is not — no shortcuts.
 
 ---
 
@@ -40,7 +40,7 @@ There is no keyboard, so **each box is a letter dial**.
 | **Left / Right** | Move between boxes |
 | **A** | Submit the guess |
 | **B** | Clear the current box |
-| **Select** | Statistics screen |
+| **Select** | Statistics (in game) / How to play (on the title) |
 | **Start** | New game (once a game has ended) |
 
 Holding Up or Down is the difference between this being pleasant and being
@@ -48,17 +48,38 @@ tedious — it auto-repeats after about a third of a second.
 
 ---
 
-## What's in it
+## What makes this clone different: the word list
 
-- **The real word lists.** 12,972 valid guesses and the 2,315-word answer list,
-  the same data the original game used. Guessing a non-word shakes the board and
-  does not cost you a turn.
+Most Wordle clones ship a dictionary. This one ships **the game**.
+
+The 2,315-word **answer list is the curated one the original game used** —
+everyday words a person can actually arrive at, not whatever five-letter
+strings a dictionary happens to contain. That curation is most of what made
+Wordle feel fair: the answer is always a word you know. Clones that draw
+answers from a full dictionary will eventually ask you to guess `XYLYL`, and
+at that point it is a different, worse game.
+
+The **12,972-word guess list** is the original's too, so anything you would
+try in the real game is accepted here, and anything fake shakes the board
+without costing a turn.
+
+## What else is in it
+
+- **A letter dial, not an on-screen keyboard.** Up/Down spins the letter in
+  place, Left/Right moves between boxes — combination-lock entry built for a
+  d-pad, with hold-to-repeat.
 - **Correct duplicate-letter scoring.** `ALLOT` against `CELLO` marks one L green
   and one yellow, not two greens — the case most clones get wrong.
 - **Persistent statistics.** Games played, win rate, current and maximum streak,
   and a guess-distribution histogram, all in battery-backed save RAM.
-- **Chiptune title theme.**
-- Colour scheme follows the official dark theme.
+- **A how-to-play screen** — SELECT on the title shows the colour key as real
+  scored tiles, so the game explains itself on the handheld.
+- **Sound.** A chiptune title theme, plus small register-driven effects: the
+  dial ticks, the reveal chimes across the row, rejected words buzz with the
+  shake, wins get a rising sweep.
+- **Newsprint look.** Warm paper ground, keycap tiles with drop shadows, and
+  the NYT scoring colours — Wordle is a newspaper puzzle, and the screen
+  reads like one.
 
 ---
 

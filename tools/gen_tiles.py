@@ -103,24 +103,63 @@ def scale2(rows):
     return out
 
 
-def make_cell(ch):
-    """16x16 letter tile -> four 8x8 tiles.
+def scale_tall(rows):
+    """5x7 -> 10x13: double width everywhere, double height except one row.
 
-    The glyph is 10x14 at (3,1), leaving exactly one pixel above and below for
-    the outline, so a big letter and a clean border can coexist.
+    The dropped row is chosen per glyph: the first row that duplicates its
+    neighbour, so the letter loses redundancy rather than a feature. Dropping
+    the middle row blindly halved the A's crossbar, which made it read as an
+    H at keycap size."""
+    skip = 3
+    for i in range(1, 7):
+        if rows[i] == rows[i - 1]:
+            skip = i
+            break
+    out = []
+    for i, row in enumerate(rows):
+        d = "".join(c * 2 for c in row)
+        out.append(d)
+        if i != skip:
+            out.append(d)
+    return out
+
+
+def make_cell(ch):
+    """16x16 keycap -> four 8x8 tiles.
+
+    Wordyl-style key: a rounded 15x15 body with a 1px ink outline and a drop
+    shadow falling one pixel down-right, sitting on the sky. Pixel values:
+    0 = sky, 1 = key face, 2 = shadow, 3 = ink (outline and letter). State
+    colours arrive via the palette, so one set of tiles serves every state.
     """
     c = blank(16, 16, 0)
-    for i in range(16):
-        c[0][i] = 1
-        c[15][i] = 1
-        c[i][0] = 1
-        c[i][15] = 1
+
+    # Drop shadow: the body silhouette shifted one pixel down-right.
+    for y in range(1, 16):
+        c[y][15] = 2
+    for x in range(1, 16):
+        c[15][x] = 2
+    c[1][15] = 0
+    c[15][1] = 0
+
+    # Body outline, rounded by leaving the corner pixels as sky.
+    for i in range(1, 14):
+        c[0][i] = 3
+        c[14][i] = 3
+        c[i][0] = 3
+        c[i][14] = 3
+
+    # Face.
+    for y in range(1, 14):
+        for x in range(1, 14):
+            c[y][x] = 1
+
     if ch != " ":
-        rows = scale2(GLYPHS[ch])
+        rows = scale_tall(GLYPHS[ch])
         for y, row in enumerate(rows):
             for x, p in enumerate(row):
                 if p == "#":
-                    c[1 + y][3 + x] = 2
+                    c[1 + y][2 + x] = 3
     tiles = []
     for tx in range(2):
         for ty in range(2):
@@ -140,8 +179,66 @@ def make_font_tile(ch):
 
 
 def make_solid():
-    """Solid block for histogram bars; drawn in the border colour."""
+    """Solid block for histogram bars; drawn in the face colour."""
     return encode_tile(blank(8, 8, 1))
+
+
+def make_logo():
+    """The title logo: WORDLE as sticker lettering - the glyph filled in the
+    face colour, wrapped in a 1px ink outline, with the whole sticker casting
+    a shadow one pixel down-right. Thin strokes with a bare shadow read as
+    large text; fill + outline + shadow is what reads as a logo. Values:
+    0 = sky, 1 = face, 2 = shadow, 3 = ink; drawn with cell palettes, so the
+    attribute can recolour individual letters."""
+    word = "WORDLE"
+    w = 16 * len(word)
+    c = blank(w, 16, 0)
+    for i, ch in enumerate(word):
+        rows = scale_tall(GLYPHS[ch])          # 10x13
+        ox, oy = i * 16 + 2, 1
+        fill = set()
+        for y, row in enumerate(rows):
+            for x, px in enumerate(row):
+                if px == "#":
+                    fill.add((ox + x, oy + y))
+        # Outline: every sky neighbour of the fill, including diagonals.
+        edge = set()
+        for (x, y) in fill:
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if (x + dx, y + dy) not in fill:
+                        edge.add((x + dx, y + dy))
+        # Shadow: the whole sticker silhouette, one pixel down-right.
+        for (x, y) in fill | edge:
+            if 0 <= y + 1 < 16 and x + 1 < w:
+                c[y + 1][x + 1] = 2
+        for (x, y) in edge:
+            if 0 <= y < 16:
+                c[y][x] = 3
+        for (x, y) in fill:
+            c[y][x] = 1
+    tiles = []
+    for ty in range(2):
+        for tx in range(w // 8):
+            sub = [[c[ty * 8 + y][tx * 8 + x] for x in range(8)] for y in range(8)]
+            tiles.append(encode_tile(sub))
+    return tiles
+
+
+def make_sparkle(kind):
+    """Little dark decorations scattered on the sky, wordyl-style. Drawn in
+    value 2, the ink slot of the text palette, so they need no palette of
+    their own."""
+    c = blank(8, 8, 0)
+    if kind == 0:      # four-point star
+        pts = [(3,1),(3,2),(3,4),(3,5),(1,3),(2,3),(4,3),(5,3),(3,3)]
+    elif kind == 1:    # dot
+        pts = [(3,3)]
+    else:              # tiny diamond
+        pts = [(3,2),(2,3),(4,3),(3,4)]
+    for x, y in pts:
+        c[y][x] = 2
+    return encode_tile(c)
 
 
 def emit(fh, name, tiles):
@@ -157,19 +254,21 @@ def build_all():
     for ch in CELL_ORDER:
         cells.extend(make_cell(ch))
     fonts = [make_font_tile(ch) for ch in FONT_ORDER]
-    utils = [make_solid()]
-    return cells, fonts, utils
+    utils = [make_solid(), make_sparkle(0), make_sparkle(1), make_sparkle(2)]
+    logo = make_logo()
+    return cells, fonts, utils, logo
 
 
 def main():
     os.makedirs(RES, exist_ok=True)
-    cells, fonts, utils = build_all()
+    cells, fonts, utils, logo = build_all()
 
     with open(os.path.join(RES, "tiles.c"), "w") as fh:
         fh.write('#include <gbdk/platform.h>\n#include <stdint.h>\n\n')
         emit(fh, "cell_tiles", cells)
         emit(fh, "font_tiles", fonts)
         emit(fh, "util_tiles", utils)
+        emit(fh, "logo_tiles", logo)
 
     with open(os.path.join(RES, "tiles.h"), "w") as fh:
         fh.write("#ifndef TILES_H\n#define TILES_H\n\n")
@@ -180,17 +279,25 @@ def main():
         fh.write("#define CELL_TILE_BASE 0\n")
         fh.write("#define FONT_TILE_BASE %d\n" % len(cells))
         fh.write("#define UTIL_TILE_BASE %d\n" % (len(cells) + len(fonts)))
-        fh.write("#define TILE_SOLID (UTIL_TILE_BASE + 0)\n\n")
+        fh.write("#define LOGO_TILE_COUNT %d\n" % len(logo))
+        fh.write("#define LOGO_TILE_BASE %d\n" % (len(cells) + len(fonts) + len(utils)))
+        fh.write("#define LOGO_TILES_W %d\n" % (len(logo) // 2))
+        fh.write("#define TILE_SOLID (UTIL_TILE_BASE + 0)\n")
+        fh.write("#define TILE_STAR (UTIL_TILE_BASE + 1)\n")
+        fh.write("#define TILE_DOT (UTIL_TILE_BASE + 2)\n")
+        fh.write("#define TILE_DIAMOND (UTIL_TILE_BASE + 3)\n\n")
         fh.write("uint8_t font_index(char c);\n\n")
         fh.write("extern const uint8_t cell_tiles[];\n")
         fh.write("extern const uint8_t font_tiles[];\n")
-        fh.write("extern const uint8_t util_tiles[];\n\n")
+        fh.write("extern const uint8_t util_tiles[];\n")
+        fh.write("extern const uint8_t logo_tiles[];\n\n")
         fh.write("#endif\n")
 
-    total = len(cells) + len(fonts) + len(utils)
+    total = len(cells) + len(fonts) + len(utils) + len(logo)
     print("cell tiles : %d" % len(cells))
     print("font tiles : %d" % len(fonts))
     print("util tiles : %d" % len(utils))
+    print("logo tiles : %d" % len(logo))
     print("total      : %d / 256" % total)
     print("font order : %s" % "".join(FONT_ORDER))
 

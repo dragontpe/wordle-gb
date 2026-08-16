@@ -22,31 +22,40 @@ uint8_t font_index(char c) {
     }
 }
 
-// NYT dark theme. Tile pixel values mean 0 = fill, 1 = border, 2 = ink; a
-// scored tile sets fill and border to the same colour so it reads as solid,
-// while an empty one keeps the border visible as a 1px outline.
-#define C_BG      RGB8( 18, 18, 19)
-#define C_OUTLINE RGB8( 58, 58, 60)
-#define C_BRIGHT  RGB8( 86, 87, 88)
-#define C_INK     RGB8(255,255,255)
-#define C_DIM     RGB8(129,131,132)
-#define C_GREEN   RGB8( 83,141, 78)
-#define C_YELLOW  RGB8(181,159, 59)
-#define C_ABSENT  RGB8( 58, 58, 60)
+// Newsprint theme: the same keycap construction that made the board readable,
+// re-grounded on warm paper with near-black ink - Wordle is a newspaper
+// puzzle, and the page is an identity the wordyl family doesn't own. Tile
+// pixel values: 0 = paper, 1 = key face, 2 = drop shadow, 3 = ink.
+#define C_SKY     RGB8(240,237,228)   /* the paper - soft, barely warm */
+#define C_FACE    RGB8(255,255,255)
+#define C_SHADOW  RGB8(176,170,156)   /* soft print shadow */
+#define C_INK     RGB8( 26, 24, 20)   /* warm near-black */
+#define C_CURSOR  RGB8(255,238,170)
+#define C_GREEN   RGB8( 72,160, 82)
+#define C_GRNSH   RGB8( 38, 96, 52)
+#define C_ORANGE  RGB8(238,152, 52)
+#define C_ORGSH   RGB8(158, 92, 26)
+#define C_GREYKEY RGB8(120,116,108)   /* absent key - dark, NYT-style */
+#define C_GREYSH  RGB8( 82, 79, 72)
+#define C_GREYINK RGB8(110,106, 96)
+#define C_DIMBAR  RGB8(192,186,172)
+#define C_DIMINK  RGB8(126,120,106)
+#define C_WHITE   RGB8(255,255,255)
 
-static const palette_color_t pal_empty[4]  = { C_BG,     C_OUTLINE, C_INK, C_INK };
-static const palette_color_t pal_filled[4] = { C_BG,     C_BRIGHT,  C_INK, C_INK };
-static const palette_color_t pal_cursor[4] = { C_BG,     C_INK,     C_INK, C_INK };
-static const palette_color_t pal_green[4]  = { C_GREEN,  C_GREEN,   C_INK, C_INK };
-static const palette_color_t pal_yellow[4] = { C_YELLOW, C_YELLOW,  C_INK, C_INK };
-static const palette_color_t pal_absent[4] = { C_ABSENT, C_ABSENT,  C_INK, C_INK };
-static const palette_color_t pal_text[4]   = { C_BG,     C_BG,      C_INK, C_INK };
-static const palette_color_t pal_dim[4]    = { C_BG,     C_DIM,     C_DIM, C_DIM };
+static const palette_color_t pal_empty[4]  = { C_SKY, C_FACE,    C_SHADOW, C_INK };
+static const palette_color_t pal_filled[4] = { C_SKY, C_FACE,    C_SHADOW, C_INK };
+static const palette_color_t pal_cursor[4] = { C_SKY, C_CURSOR,  C_SHADOW, C_INK };
+static const palette_color_t pal_green[4]  = { C_SKY, C_GREEN,   C_GRNSH,  C_WHITE };
+static const palette_color_t pal_yellow[4] = { C_SKY, C_ORANGE,  C_ORGSH,  C_INK };
+static const palette_color_t pal_absent[4] = { C_SKY, C_GREYKEY, C_GREYSH, C_WHITE };
+static const palette_color_t pal_text[4]   = { C_SKY, C_SKY,     C_INK,    C_INK };
+static const palette_color_t pal_dim[4]    = { C_SKY, C_DIMBAR,  C_DIMINK, C_DIMINK };
 
 void render_init(void) {
     set_bkg_data(CELL_TILE_BASE, CELL_TILE_COUNT, cell_tiles);
     set_bkg_data(FONT_TILE_BASE, FONT_TILE_COUNT, font_tiles);
     set_bkg_data(UTIL_TILE_BASE, UTIL_TILE_COUNT, util_tiles);
+    set_bkg_data(LOGO_TILE_BASE, LOGO_TILE_COUNT, logo_tiles);
 
     set_bkg_palette(PAL_EMPTY,  1, pal_empty);
     set_bkg_palette(PAL_FILLED, 1, pal_filled);
@@ -73,12 +82,24 @@ void render_set_attr(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t pal) {
     VBK_REG = 0;
 }
 
+// Print flecks in the margins - dots and the odd diamond, like ink specks on
+// newsprint. No stars: sparkles are wordyl's signature, specks are the page's.
+static const uint8_t sparkles[][3] = {
+    { 1,  1, TILE_DOT },     { 17,  2, TILE_DOT },   { 3,  5, TILE_DOT },
+    { 18,  6, TILE_DOT },    { 1,  9, TILE_DIAMOND },{ 17, 10, TILE_DOT },
+    { 2, 13, TILE_DOT },     { 18, 14, TILE_DOT },   { 4, 16, TILE_DIAMOND },
+    { 15, 17, TILE_DOT },
+};
+
 void render_clear(void) {
     uint8_t row[20];
     for (uint8_t i = 0; i < 20; i++) row[i] = FONT_TILE_BASE + font_index(' ');
     for (uint8_t y = 0; y < 18; y++) {
         set_bkg_tiles(0, y, 20, 1, row);
         render_set_attr(0, y, 20, 1, PAL_TEXT);
+    }
+    for (uint8_t i = 0; i < sizeof(sparkles) / 3; i++) {
+        set_bkg_tile_xy(sparkles[i][0], sparkles[i][1], sparkles[i][2]);
     }
 }
 
@@ -99,15 +120,42 @@ void render_cell(uint8_t col, uint8_t row, uint8_t letter, uint8_t pal) {
     draw_cell_tiles(GRID_X + col * 2, GRID_Y + row * 2, letter, pal);
 }
 
-// The title spells WORDLE in the same tiles the board uses, two of them already
-// scored, so the screen teaches the colour language before the first guess.
+// The drawn WORDLE logo: two rows of consecutive tiles, sliced row-major by
+// gen_tiles.py. PAL_EMPTY supplies dark ink over a soft shadow on the sky.
+void render_logo(uint8_t x, uint8_t y) {
+    // White sticker letters with one scored letter of each colour in the
+    // middle - the logo itself introduces the game's colour language.
+    static const uint8_t letter_pal[6] = {
+        PAL_EMPTY, PAL_EMPTY, PAL_YELLOW, PAL_ABSENT, PAL_EMPTY, PAL_EMPTY
+    };
+    uint8_t row[LOGO_TILES_W];
+    for (uint8_t r = 0; r < 2; r++) {
+        for (uint8_t i = 0; i < LOGO_TILES_W; i++)
+            row[i] = (uint8_t)(LOGO_TILE_BASE + r * LOGO_TILES_W + i);
+        set_bkg_tiles(x, (uint8_t)(y + r), LOGO_TILES_W, 1, row);
+    }
+    for (uint8_t i = 0; i < 6; i++)
+        render_set_attr((uint8_t)(x + i * 2), y, 2, 2, letter_pal[i]);
+}
+
+// A keycap anywhere on screen, for the title's scattered decoration.
+void render_key(uint8_t x, uint8_t y, uint8_t letter, uint8_t pal) {
+    draw_cell_tiles(x, y, letter, pal);
+}
+
+// The title spells WORDLE in the same tiles the board uses, letters bouncing
+// on alternate rows the way wordyl staggers its tiles, two of them already
+// scored so the screen teaches the colour language before the first guess.
 void render_wordmark(uint8_t x, uint8_t y) {
     static const char word[6] = { 'W', 'O', 'R', 'D', 'L', 'E' };
     static const uint8_t pals[6] = {
         PAL_GREEN, PAL_EMPTY, PAL_YELLOW, PAL_EMPTY, PAL_EMPTY, PAL_GREEN
     };
+    // Three tiles of pitch, not two: staggered keys jammed edge to edge read
+    // as one broken mosaic. The bounce only works with air between the keys.
     for (uint8_t i = 0; i < 6; i++) {
-        draw_cell_tiles((uint8_t)(x + i * 2), y, (uint8_t)(word[i] - 'A'), pals[i]);
+        draw_cell_tiles((uint8_t)(x + i * 3), (uint8_t)(y + (i & 1)),
+                        (uint8_t)(word[i] - 'A'), pals[i]);
     }
 }
 

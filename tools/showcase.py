@@ -102,6 +102,14 @@ def main():
     r = Rom()
     r.tick(120)
     r.grab("title")
+
+    # The help screen is part of the product now; show it.
+    r.tap("select", hold=6, gap=10)
+    r.tick(20)
+    r.grab("how to play")
+    r.tap("b", hold=6, gap=10)
+    r.tick(20)
+
     r.tap("start", hold=6, gap=10)
     r.tick(30)
 
@@ -132,7 +140,7 @@ def main():
 
     scale, pad = 3, 10
     w, h = 160 * scale, 144 * scale
-    sheet = Image.new("RGB", (len(shots) * (w + pad) + pad, h + pad * 2), (10, 10, 11))
+    sheet = Image.new("RGB", (len(shots) * (w + pad) + pad, h + pad * 2), (28, 27, 24))
     for i, (_, img) in enumerate(shots):
         sheet.paste(img.resize((w, h), Image.NEAREST), (pad + i * (w + pad), pad))
     sheet.save(OUT)

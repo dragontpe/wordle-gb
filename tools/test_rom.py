@@ -38,10 +38,14 @@ def q(c):
 
 
 # Dark theme, matching the RGB8() constants in src/render.c.
-BG = q((18, 18, 19))
-NYT_GREEN = q((83, 141, 78))
-NYT_YELLOW = q((181, 159, 59))
-NYT_ABSENT = q((58, 58, 60))
+# Daytime keycap theme (see render.c). An unscored cell's fill is the white
+# key face, or the cursor tint on the cell the dial is sitting on.
+FACE = q((255, 255, 255))
+CURSOR = q((255, 238, 170))
+UNSCORED = {FACE, CURSOR}
+NYT_GREEN = q((72, 160, 82))
+NYT_YELLOW = q((238, 152, 52))
+NYT_ABSENT = q((120, 116, 108))
 SCORED_FILLS = {NYT_GREEN, NYT_YELLOW, NYT_ABSENT}
 
 
@@ -131,11 +135,11 @@ def main():
     r.tick(30)
     r.grab("empty board")
     check(r.row(0) == ".....", "board starts empty (got %r)" % r.row(0))
-    check(all(f == BG for f in r.fills(0)),
+    check(all(f in UNSCORED for f in r.fills(0)),
           "empty board cells are unfilled (got %r)" % r.fills(0))
-    board_cols = r.colors()
-    check(NYT_GREEN not in board_cols, "empty board shows no green")
-    check(NYT_YELLOW not in board_cols, "empty board shows no yellow")
+    # With a 5-colour palette the scoring colours also serve as text and
+    # cursor colours, so whole-screen colour checks prove nothing; the
+    # per-cell fill checks above and below carry the invariant instead.
 
     # --- a non-word must be rejected without consuming a guess --------------
     r.type_word("ZZZZZ")
@@ -146,7 +150,7 @@ def main():
     r.tick(100)
     r.grab("ZZZZZ rejected")
     check(r.row(1) == ".....", "rejected word did not advance to row 1")
-    check(all(f == BG for f in r.fills(0)),
+    check(all(f in UNSCORED for f in r.fills(0)),
           "rejected non-word leaves cells unscored (got %r)" % r.fills(0))
 
     # --- a real word must be accepted and scored ---------------------------
@@ -165,10 +169,11 @@ def main():
           "next row starts blank, as in the NYT game (got %r)" % r.row(1))
 
     fills = r.fills(0)
-    check(all(f != BG for f in fills), "every scored cell is filled (got %r)" % fills)
+    check(all(f not in UNSCORED for f in fills),
+          "every scored cell is filled (got %r)" % fills)
     check(all(f in SCORED_FILLS for f in fills),
           "every scored cell uses a scoring colour (got %r)" % fills)
-    check(r.fills(1) == [BG] * 5,
+    check(all(f in UNSCORED for f in r.fills(1)),
           "the next row is not scored yet (got %r)" % r.fills(1))
 
     # --- stats screen ------------------------------------------------------

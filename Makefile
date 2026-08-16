@@ -11,7 +11,8 @@ SRC_OBJS = \
 	$(OBJDIR)/main.o \
 	$(OBJDIR)/render.o \
 	$(OBJDIR)/words.o \
-	$(OBJDIR)/stats.o
+	$(OBJDIR)/stats.o \
+	$(OBJDIR)/sfx.o
 
 RES_OBJS = \
 	$(OBJDIR)/res_tiles.o \

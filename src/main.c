@@ -6,6 +6,7 @@
 #include "hUGEDriver.h"
 #include "render.h"
 #include "stats.h"
+#include "sfx.h"
 #include "tiles.h"
 #include "wordlist.h"
 #include "words.h"
@@ -147,6 +148,7 @@ static void reveal_row(uint8_t row) {
     // Staggered reveal so the result reads left to right instead of snapping.
     for (uint8_t c = 0; c < WORD_LEN; c++) {
         render_cell(c, row, grid[row][c], state_pal[state[row][c]]);
+        sfx_reveal(state[row][c]);
         for (uint8_t f = 0; f < 6; f++) vsync();
     }
 }
@@ -229,6 +231,7 @@ static void submit_guess(void) {
     for (uint8_t c = 0; c < WORD_LEN; c++) {
         if (grid[cur_row][c] == LETTER_EMPTY) {
             show_msg("NOT ENOUGH LETTERS", PAL_DIM);
+            sfx_bad();
             render_shake();
             return;
         }
@@ -237,6 +240,7 @@ static void submit_guess(void) {
     uint32_t packed = word_pack(grid[cur_row]);
     if (!word_is_valid(packed)) {
         show_msg("NOT IN WORD LIST", PAL_DIM);
+        sfx_bad();
         render_shake();
         return;
     }
@@ -257,6 +261,7 @@ static void submit_guess(void) {
         draw_header();
         show_msg(win_words[cur_row], PAL_TEXT);
         show_hint("START - NEW GAME");
+        sfx_win();
         return;
     }
 
@@ -271,6 +276,7 @@ static void submit_guess(void) {
         word[WORD_LEN] = 0;
         show_msg(word, PAL_TEXT);
         show_hint("START - NEW GAME");
+        sfx_lose();
         return;
     }
 
@@ -306,24 +312,85 @@ static void music_stop(void) {
     __critical {
         remove_VBL(hUGE_dosound);
     }
-    NR52_REG = 0x00;   // sound off, silencing any note still held
+    // Keep the APU powered for the in-game effects; just silence whatever
+    // note the tune left ringing.
+    NR12_REG = 0x08; NR14_REG = 0x80;
+    NR22_REG = 0x08; NR24_REG = 0x80;
+    NR32_REG = 0x00;
+    NR42_REG = 0x08; NR44_REG = 0x80;
+}
+
+// The colour key done wordyl's way: real scored keycaps with labels, not
+// prose, plus this game's own dial controls. Reached from the title with
+// SELECT; B returns.
+static void help_screen(void) {
+    render_clear();
+    render_text_centered(0, "HOW TO PLAY", PAL_TEXT);
+    render_text_centered(2, "GUESS THE WORD IN 6", PAL_DIM);
+
+    render_key(2, 4, (uint8_t)('A' - 'A'), PAL_GREEN);
+    render_text(6, 5, "RIGHT SPOT", PAL_TEXT);
+    render_key(2, 7, (uint8_t)('B' - 'A'), PAL_YELLOW);
+    render_text(6, 8, "WRONG SPOT", PAL_TEXT);
+    render_key(2, 10, (uint8_t)('C' - 'A'), PAL_ABSENT);
+    render_text(6, 11, "NOT IN WORD", PAL_TEXT);
+
+    render_text_centered(13, "UP DOWN - LETTER", PAL_DIM);
+    render_text_centered(14, "LEFT RIGHT - MOVE", PAL_DIM);
+    render_text_centered(15, "A ENTER  SEL STATS", PAL_DIM);
+    render_text_centered(17, "B - BACK", PAL_TEXT);
+
+    while (!(joypad() & (J_B | J_START))) vsync();
+    waitpadup();
+}
+
+static void title_draw(void) {
+    render_clear();
+
+    // The sticker logo up top; beneath it, GAME / BOY spelled in scored
+    // keycaps, staggered the way wordyl blocks its words - tiles that spell
+    // something, not confetti. Controls live on the help screen, so the
+    // title carries only the two lines it needs.
+    render_logo(4, 2);
+    {
+        static const char g_word[4] = { 'G', 'A', 'M', 'E' };
+        static const uint8_t g_pal[4] = { PAL_GREEN, PAL_EMPTY, PAL_EMPTY, PAL_YELLOW };
+        static const char b_word[3] = { 'B', 'O', 'Y' };
+        static const uint8_t b_pal[3] = { PAL_EMPTY, PAL_GREEN, PAL_EMPTY };
+        for (uint8_t i = 0; i < 4; i++)
+            render_key((uint8_t)(2 + i * 2), 6, (uint8_t)(g_word[i] - 'A'), g_pal[i]);
+        for (uint8_t i = 0; i < 3; i++)
+            render_key((uint8_t)(12 + i * 2), 8, (uint8_t)(b_word[i] - 'A'), b_pal[i]);
+    }
+
+    render_text_centered(14, "SELECT - HOW TO PLAY", PAL_DIM);
 }
 
 static void title_screen(void) {
-    render_clear();
-    render_wordmark(4, 3);
-    render_text_centered(9, "PRESS START", PAL_TEXT);
-    render_text_centered(13, "UP DOWN - LETTER", PAL_DIM);
-    render_text_centered(14, "LEFT RIGHT - MOVE", PAL_DIM);
-    render_text_centered(15, "A - ENTER", PAL_DIM);
+    title_draw();
 
     music_start();
 
     // Seed from how long the player takes to press a button; DIV keeps counting
-    // regardless, so this is effectively unpredictable.
+    // regardless, so this is effectively unpredictable. The prompt blinks on
+    // the same loop, and SELECT detours through the help screen.
     uint16_t seed = 0;
-    while (!(joypad() & (J_START | J_A))) {
+    uint8_t blink = 0;
+    for (;;) {
+        uint8_t j = joypad();
+        if (j & (J_START | J_A)) break;
+        if (j & J_SELECT) {
+            waitpadup();
+            help_screen();
+            title_draw();
+            blink = 0;
+        }
         seed += DIV_REG;
+        if ((blink & 31) == 0) {
+            if (blink & 32) render_text_clear(4, 17, 12);
+            else render_text_centered(17, "PRESS START", PAL_TEXT);
+        }
+        blink++;
         vsync();
     }
     initrand(seed ? seed : 1);
@@ -389,18 +456,21 @@ void main(void) {
             grid[cur_row][cur_col] = l;
             draw_cell_at(cur_row, cur_col);
             show_msg(0, PAL_TEXT);
+            sfx_tick();
         }
 
         if (pressed & J_LEFT) {
             if (cur_col > 0) {
                 cur_col--;
                 draw_row(cur_row);
+                sfx_move();
             }
         }
         if (pressed & J_RIGHT) {
             if (cur_col + 1 < WORD_LEN) {
                 cur_col++;
                 draw_row(cur_row);
+                sfx_move();
             }
         }
         if (pressed & J_B) {
