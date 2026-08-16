@@ -3,6 +3,10 @@
 Wordle as a Game Boy Color ROM, built for the **Miyoo Mini Plus** but valid on
 any GBC emulator, flashcart, or real hardware.
 
+<p align="center">
+  <img src="docs/boxart.png" width="380" alt="Box art: a grinning letter-tile mascot bouncing over a cascade of green, orange and grey tiles">
+</p>
+
 ![Title, how-to-play, mid-game, solved, and statistics screens](docs/screens.png)
 
 Six guesses, green for the right letter in the right place, orange for the
