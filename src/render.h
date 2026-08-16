@@ -27,6 +27,9 @@ void render_text_clear(uint8_t x, uint8_t y, uint8_t width);
 void render_bar(uint8_t x, uint8_t y, uint8_t width, uint8_t pal);
 void render_wordmark(uint8_t x, uint8_t y);
 void render_logo(uint8_t x, uint8_t y);
+void render_logo2(uint8_t x, uint8_t y);
+void render_title_palettes(void);
+void render_game_palettes(void);
 void render_key(uint8_t x, uint8_t y, uint8_t letter, uint8_t pal);
 void render_shake(void);
 

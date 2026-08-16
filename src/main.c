@@ -347,23 +347,29 @@ static void help_screen(void) {
 static void title_draw(void) {
     render_clear();
 
-    // The sticker logo up top; beneath it, GAME / BOY spelled in scored
-    // keycaps, staggered the way wordyl blocks its words - tiles that spell
-    // something, not confetti. Controls live on the help screen, so the
-    // title carries only the two lines it needs.
-    render_logo(4, 2);
+    // The big rainbow logo owns the screen the way real GBC titles work, a
+    // QWERTY keycap ridge is the ground band, and the copyright lines close
+    // the frame. The logo borrows four palette slots the title never draws
+    // with; render_game_palettes() gives them back on the way out.
+    render_title_palettes();
+    render_logo2(3, 1);
+
+    render_text_centered(6, "THE WORD GAME", PAL_TEXT);
+
     {
-        static const char g_word[4] = { 'G', 'A', 'M', 'E' };
-        static const uint8_t g_pal[4] = { PAL_GREEN, PAL_EMPTY, PAL_EMPTY, PAL_YELLOW };
-        static const char b_word[3] = { 'B', 'O', 'Y' };
-        static const uint8_t b_pal[3] = { PAL_EMPTY, PAL_GREEN, PAL_EMPTY };
-        for (uint8_t i = 0; i < 4; i++)
-            render_key((uint8_t)(2 + i * 2), 6, (uint8_t)(g_word[i] - 'A'), g_pal[i]);
-        for (uint8_t i = 0; i < 3; i++)
-            render_key((uint8_t)(12 + i * 2), 8, (uint8_t)(b_word[i] - 'A'), b_pal[i]);
+        static const char qwerty[10] =
+            { 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P' };
+        static const uint8_t kpal[10] = {
+            PAL_EMPTY, PAL_GREEN, PAL_EMPTY, PAL_EMPTY, PAL_YELLOW,
+            PAL_EMPTY, PAL_EMPTY, PAL_GREEN, PAL_EMPTY, PAL_EMPTY
+        };
+        for (uint8_t i = 0; i < 10; i++)
+            render_key((uint8_t)(i * 2), 12, (uint8_t)(qwerty[i] - 'A'), kpal[i]);
     }
 
-    render_text_centered(14, "SELECT - HOW TO PLAY", PAL_DIM);
+    render_text_centered(15, "SELECT: HOW TO PLAY", PAL_TEXT);
+    render_text_centered(16, "@2026", PAL_TEXT);
+    render_text_centered(17, "WITHOUT BANNERS", PAL_TEXT);
 }
 
 static void title_screen(void) {
@@ -381,19 +387,21 @@ static void title_screen(void) {
         if (j & (J_START | J_A)) break;
         if (j & J_SELECT) {
             waitpadup();
+            render_game_palettes();   // help uses the slots the logo borrows
             help_screen();
             title_draw();
             blink = 0;
         }
         seed += DIV_REG;
         if ((blink & 31) == 0) {
-            if (blink & 32) render_text_clear(4, 17, 12);
-            else render_text_centered(17, "PRESS START", PAL_TEXT);
+            if (blink & 32) render_text_clear(4, 9, 12);
+            else render_text_centered(9, "PRESS START", PAL_TEXT);
         }
         blink++;
         vsync();
     }
     initrand(seed ? seed : 1);
+    render_game_palettes();
     waitpadup();
 
     // The board is a quiet screen; the tune belongs to the title only.

@@ -66,11 +66,13 @@ GLYPHS = {
     "%": ["##..#", "##.#.", "..#..", ".#...", "#..##", ".#.##", "....."],
     "/": ["....#", "...#.", "...#.", "..#..", ".#...", ".#...", "#...."],
     ".": [".....", ".....", ".....", ".....", ".....", ".....", "..#.."],
+    # (c) copyright mark, addressed as '@' in text strings.
+    "@": [".###.", "#...#", "#.###", "##..#", "#.###", "#...#", ".###."],
 }
 
 FONT_ORDER = [chr(c) for c in range(ord("A"), ord("Z") + 1)] + \
              [chr(c) for c in range(ord("0"), ord("9") + 1)] + \
-             [" ", "!", "-", ":", "%", "/", "."]
+             [" ", "!", "-", ":", "%", "/", ".", "@"]
 
 CELL_ORDER = [chr(c) for c in range(ord("A"), ord("Z") + 1)]
 
@@ -225,6 +227,71 @@ def make_logo():
     return tiles
 
 
+def make_logo2():
+    """The big title logo: WORDLE at 3x scale (15x21 letters) on an arched
+    baseline, sticker construction - fill, ink outline, dropped shadow - the
+    register real GBC titles use, where the logotype IS the title screen.
+
+    Letters alternate two fill values so a single palette colours the whole
+    block: 0 = paper, 1 = fill A (green), 2 = fill B (orange), 3 = ink.
+    Boundary tiles hold two letters' fills and stay within four values.
+    Returns (tiles, tilemap) for a 14x4-tile region with duplicates shared.
+    """
+    word = "WORDLE"
+    W, H = 112, 32
+    c = blank(W, H, 0)
+    arc = [5, 1, 0, 0, 1, 5]
+    for i, ch in enumerate(word):
+        ox, oy = 2 + i * 18, 1 + arc[i]
+        fill_v = 1 if (i % 2 == 0) else 2
+        fill = set()
+        for gy, row in enumerate(GLYPHS[ch]):
+            for gx, px in enumerate(row):
+                if px == "#":
+                    for dy in range(3):
+                        for dx in range(3):
+                            fill.add((ox + gx * 3 + dx, oy + gy * 3 + dy))
+        edge = set()
+        for (x, y) in fill:
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if (x + dx, y + dy) not in fill:
+                        edge.add((x + dx, y + dy))
+        body = fill | edge
+        for (x, y) in body:                    # 2px shadow, down-right
+            for (sx, sy) in ((x + 2, y + 2),):
+                if 0 <= sx < W and 0 <= sy < H and (sx, sy) not in body:
+                    if c[sy][sx] == 0:
+                        c[sy][sx] = 3
+        for (x, y) in edge:
+            if 0 <= x < W and 0 <= y < H:
+                c[y][x] = 3
+        for (x, y) in fill:
+            c[y][x] = fill_v
+
+    # Which letters' fill pixels land in each tile decides its palette: the
+    # rainbow colours are chosen so every adjacent pair fits one of four
+    # palettes (see render.c). Pair index i covers letters i and i+1.
+    tiles, tilemap, attr, index = [], [], [], {}
+    pair_pal = [0, 1, 2, 3, 0]
+    for ty in range(H // 8):
+        for tx in range(W // 8):
+            sub = tuple(tuple(c[ty * 8 + y][tx * 8 + x] for x in range(8))
+                        for y in range(8))
+            if sub not in index:
+                index[sub] = len(tiles)
+                tiles.append(encode_tile([list(r) for r in sub]))
+            tilemap.append(index[sub])
+            letters = set()
+            for y in range(8):
+                for x in range(8):
+                    if c[ty * 8 + y][tx * 8 + x] in (1, 2):
+                        letters.add(min((tx * 8 + x - 2) // 18, 5))
+            lo = min(letters) if letters else 0
+            attr.append(pair_pal[min(lo, 4)])
+    return tiles, tilemap, attr
+
+
 def make_sparkle(kind):
     """Little dark decorations scattered on the sky, wordyl-style. Drawn in
     value 2, the ink slot of the text palette, so they need no palette of
@@ -256,12 +323,13 @@ def build_all():
     fonts = [make_font_tile(ch) for ch in FONT_ORDER]
     utils = [make_solid(), make_sparkle(0), make_sparkle(1), make_sparkle(2)]
     logo = make_logo()
-    return cells, fonts, utils, logo
+    logo2, logo2_map, logo2_attr = make_logo2()
+    return cells, fonts, utils, logo, logo2, logo2_map, logo2_attr
 
 
 def main():
     os.makedirs(RES, exist_ok=True)
-    cells, fonts, utils, logo = build_all()
+    cells, fonts, utils, logo, logo2, logo2_map, logo2_attr = build_all()
 
     with open(os.path.join(RES, "tiles.c"), "w") as fh:
         fh.write('#include <gbdk/platform.h>\n#include <stdint.h>\n\n')
@@ -269,6 +337,13 @@ def main():
         emit(fh, "font_tiles", fonts)
         emit(fh, "util_tiles", utils)
         emit(fh, "logo_tiles", logo)
+        emit(fh, "logo2_tiles", logo2)
+        fh.write("const uint8_t logo2_map[%d] = {\n    " % len(logo2_map))
+        fh.write(", ".join(str(v) for v in logo2_map))
+        fh.write("\n};\n\n")
+        fh.write("const uint8_t logo2_attr[%d] = {\n    " % len(logo2_attr))
+        fh.write(", ".join(str(v) for v in logo2_attr))
+        fh.write("\n};\n\n")
 
     with open(os.path.join(RES, "tiles.h"), "w") as fh:
         fh.write("#ifndef TILES_H\n#define TILES_H\n\n")
@@ -282,6 +357,9 @@ def main():
         fh.write("#define LOGO_TILE_COUNT %d\n" % len(logo))
         fh.write("#define LOGO_TILE_BASE %d\n" % (len(cells) + len(fonts) + len(utils)))
         fh.write("#define LOGO_TILES_W %d\n" % (len(logo) // 2))
+        fh.write("#define LOGO2_TILE_COUNT %d\n" % len(logo2))
+        fh.write("#define LOGO2_TILE_BASE %d\n" % (len(cells) + len(fonts) + len(utils) + len(logo)))
+        fh.write("#define LOGO2_W 14\n#define LOGO2_H 4\n")
         fh.write("#define TILE_SOLID (UTIL_TILE_BASE + 0)\n")
         fh.write("#define TILE_STAR (UTIL_TILE_BASE + 1)\n")
         fh.write("#define TILE_DOT (UTIL_TILE_BASE + 2)\n")
@@ -290,14 +368,18 @@ def main():
         fh.write("extern const uint8_t cell_tiles[];\n")
         fh.write("extern const uint8_t font_tiles[];\n")
         fh.write("extern const uint8_t util_tiles[];\n")
-        fh.write("extern const uint8_t logo_tiles[];\n\n")
+        fh.write("extern const uint8_t logo_tiles[];\n")
+        fh.write("extern const uint8_t logo2_tiles[];\n")
+        fh.write("extern const uint8_t logo2_map[];\n")
+        fh.write("extern const uint8_t logo2_attr[];\n\n")
         fh.write("#endif\n")
 
-    total = len(cells) + len(fonts) + len(utils) + len(logo)
+    total = len(cells) + len(fonts) + len(utils) + len(logo) + len(logo2)
     print("cell tiles : %d" % len(cells))
     print("font tiles : %d" % len(fonts))
     print("util tiles : %d" % len(utils))
     print("logo tiles : %d" % len(logo))
+    print("logo2 tiles: %d" % len(logo2))
     print("total      : %d / 256" % total)
     print("font order : %s" % "".join(FONT_ORDER))
 

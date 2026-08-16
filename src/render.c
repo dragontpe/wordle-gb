@@ -18,6 +18,7 @@ uint8_t font_index(char c) {
         case '%': return 40;
         case '/': return 41;
         case '.': return 42;
+        case '@': return 43;   // (c) copyright mark
         default:  return 36;   // space
     }
 }
@@ -51,11 +52,55 @@ static const palette_color_t pal_absent[4] = { C_SKY, C_GREYKEY, C_GREYSH, C_WHI
 static const palette_color_t pal_text[4]   = { C_SKY, C_SKY,     C_INK,    C_INK };
 static const palette_color_t pal_dim[4]    = { C_SKY, C_DIMBAR,  C_DIMINK, C_DIMINK };
 
+// The title's rainbow logo hijacks four palette slots the title never draws
+// with (filled, cursor, dim, absent). Letter colours are picked so every
+// adjacent pair of letters fits one palette: red-yellow, green-yellow,
+// green-blue, red-blue - six letters, four hues, one palette per boundary.
+#define C_LRED    RGB8(224, 60, 48)
+#define C_LYELLOW RGB8(244,180, 38)
+#define C_LGREEN  RGB8( 72,160, 82)
+#define C_LBLUE   RGB8( 62,118,214)
+
+static const palette_color_t logo_pals[16] = {
+    C_SKY, C_LRED,   C_LYELLOW, C_INK,
+    C_SKY, C_LGREEN, C_LYELLOW, C_INK,
+    C_SKY, C_LGREEN, C_LBLUE,   C_INK,
+    C_SKY, C_LRED,   C_LBLUE,   C_INK
+};
+static const uint8_t logo_slots[4] = { PAL_FILLED, PAL_CURSOR, PAL_DIM, PAL_ABSENT };
+
+void render_title_palettes(void) {
+    for (uint8_t i = 0; i < 4; i++)
+        set_bkg_palette(logo_slots[i], 1, &logo_pals[i * 4]);
+}
+
+void render_game_palettes(void) {
+    set_bkg_palette(PAL_FILLED, 1, pal_filled);
+    set_bkg_palette(PAL_CURSOR, 1, pal_cursor);
+    set_bkg_palette(PAL_DIM,    1, pal_dim);
+    set_bkg_palette(PAL_ABSENT, 1, pal_absent);
+}
+
+void render_logo2(uint8_t x, uint8_t y) {
+    for (uint8_t ty = 0; ty < LOGO2_H; ty++) {
+        uint8_t row[LOGO2_W];
+        for (uint8_t i = 0; i < LOGO2_W; i++)
+            row[i] = (uint8_t)(LOGO2_TILE_BASE + logo2_map[ty * LOGO2_W + i]);
+        set_bkg_tiles(x, (uint8_t)(y + ty), LOGO2_W, 1, row);
+        VBK_REG = 1;
+        for (uint8_t i = 0; i < LOGO2_W; i++)
+            row[i] = logo_slots[logo2_attr[ty * LOGO2_W + i]];
+        set_bkg_tiles(x, (uint8_t)(y + ty), LOGO2_W, 1, row);
+        VBK_REG = 0;
+    }
+}
+
 void render_init(void) {
     set_bkg_data(CELL_TILE_BASE, CELL_TILE_COUNT, cell_tiles);
     set_bkg_data(FONT_TILE_BASE, FONT_TILE_COUNT, font_tiles);
     set_bkg_data(UTIL_TILE_BASE, UTIL_TILE_COUNT, util_tiles);
     set_bkg_data(LOGO_TILE_BASE, LOGO_TILE_COUNT, logo_tiles);
+    set_bkg_data(LOGO2_TILE_BASE, LOGO2_TILE_COUNT, logo2_tiles);
 
     set_bkg_palette(PAL_EMPTY,  1, pal_empty);
     set_bkg_palette(PAL_FILLED, 1, pal_filled);
