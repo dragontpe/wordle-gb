@@ -356,20 +356,21 @@ static void title_draw(void) {
 
     render_text_centered(6, "THE WORD GAME", PAL_TEXT);
 
-    {
-        static const char qwerty[10] =
-            { 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P' };
-        static const uint8_t kpal[10] = {
-            PAL_EMPTY, PAL_GREEN, PAL_EMPTY, PAL_EMPTY, PAL_YELLOW,
-            PAL_EMPTY, PAL_EMPTY, PAL_GREEN, PAL_EMPTY, PAL_EMPTY
-        };
-        for (uint8_t i = 0; i < 10; i++)
-            render_key((uint8_t)(i * 2), 12, (uint8_t)(qwerty[i] - 'A'), kpal[i]);
-    }
-
     render_text_centered(15, "SELECT: HOW TO PLAY", PAL_TEXT);
     render_text_centered(16, "@2026", PAL_TEXT);
     render_text_centered(17, "WITHOUT BANNERS", PAL_TEXT);
+}
+
+// PRESS / START spelled in the game's own keycaps, staggered like the word
+// blocks on era title screens. The pair pulses green on the title loop -
+// the prompt is the decoration, instead of a text line plus filler tiles.
+static void draw_press_start(uint8_t pal) {
+    static const char p_word[5] = { 'P', 'R', 'E', 'S', 'S' };
+    static const char s_word[5] = { 'S', 'T', 'A', 'R', 'T' };
+    for (uint8_t i = 0; i < 5; i++)
+        render_key((uint8_t)(2 + i * 2), 8, (uint8_t)(p_word[i] - 'A'), pal);
+    for (uint8_t i = 0; i < 5; i++)
+        render_key((uint8_t)(8 + i * 2), 11, (uint8_t)(s_word[i] - 'A'), pal);
 }
 
 static void title_screen(void) {
@@ -394,8 +395,7 @@ static void title_screen(void) {
         }
         seed += DIV_REG;
         if ((blink & 31) == 0) {
-            if (blink & 32) render_text_clear(4, 9, 12);
-            else render_text_centered(9, "PRESS START", PAL_TEXT);
+            draw_press_start((blink & 32) ? PAL_EMPTY : PAL_GREEN);
         }
         blink++;
         vsync();
